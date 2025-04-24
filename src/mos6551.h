@@ -35,6 +35,10 @@ struct MOS6551 {
 	uint8_t status_reg;
 	uint8_t command_reg;
 	uint8_t control_reg;
+	uint8_t tx_data;
+	uint8_t rx_data ;
+	int fd_tx ;
+	int fd_rx ;
 };
 
 // Hardware reset
