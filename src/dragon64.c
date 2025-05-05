@@ -21,8 +21,6 @@
  *  This machine is basically the same as the Dragon 32, but includes 64K RAM
  *  by default, an extra BASIC ROM and an ACIA for serial comms.
  *
- *  The ACIA is not emulated beyond some status registers to fool the ROM code
- *  into thinking it is present.
  */
 
 #include "mos6551.h"
@@ -51,6 +49,9 @@ static _Bool dragon64_read_byte(struct machine_dragon_common *, unsigned A);
 static _Bool dragon64_write_byte(struct machine_dragon_common *, unsigned A);
 
 static void dragon64_pia1b_data_postwrite(void *);
+
+// JRB: Add a custom D64 cpu cycle for picking up IRQs from the 6551
+static void dragon64_cpu_cycle(void *sptr, int ncycles, _Bool RnW, uint16_t A);
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -161,6 +162,9 @@ static _Bool dragon64_finish(struct part *p) {
 	md->crc_altbas = 0x17893a42;  // Dragon 64 64K mode BASIC
 	md->has_altbas = rombank_verify_crc(mdp->ROM1, "64K BASIC", -1, "@d64_2", xroar.cfg.force_crc_match, &md->crc_altbas);
 
+    // JRB: override cpu_cycle with dragon64_cpu_cycle
+    md->SAM->cpu_cycle = DELEGATE_AS3(void, int, bool, uint16, dragon64_cpu_cycle, mdp);
+    
 	// Override PIA1 PB2 as ROMSEL
 	md->PIA1->b.in_source |= (1<<2);  // pull-up
 	md->PIA1->b.data_postwrite = DELEGATE_AS0(void, dragon64_pia1b_data_postwrite, mdp);
@@ -224,6 +228,24 @@ static void dragon64_reset(struct machine *m, _Bool hard) {
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+static void dragon64_cpu_cycle(void *sptr, int ncycles, _Bool RnW, uint16_t A) {
+	struct machine_dragon64 *mdp = (struct machine_dragon64 *)sptr ;
+	struct machine_dragon_common *md = &mdp->machine_dragon;
+
+	if (ncycles && !md->clock_inhibit) {
+		advance_clock(md, ncycles);
+		MC6809_IRQ_SET(md->CPU, md->PIA0->a.irq || md->PIA0->b.irq || mdp->ACIA->IRQ);
+		MC6809_FIRQ_SET(md->CPU, md->PIA1->a.irq || md->PIA1->b.irq);
+	}
+
+	unsigned Zrow = md->SAM->Zrow;
+	unsigned Zcol = md->SAM->Zcol;
+
+	dragon_cpu_cycle(md, RnW, A, Zrow, Zcol);
+	mos6551_service_uarts(mdp->ACIA);
+}
+
 
 static _Bool dragon64_read_byte(struct machine_dragon_common *md, unsigned A) {
 	struct machine_dragon64 *mdp = (struct machine_dragon64 *)md;

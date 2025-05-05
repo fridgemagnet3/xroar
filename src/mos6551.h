@@ -24,7 +24,8 @@
 #define XROAR_MOS6551_H_
 
 #include <stdint.h>
-
+#include "delegate.h"
+#include "events.h"
 #include "part.h"
 
 struct MOS6551 {
@@ -39,6 +40,8 @@ struct MOS6551 {
 	uint8_t rx_data ;
 	int fd_tx ;
 	int fd_rx ;
+	
+	struct event irq_event;
 };
 
 // Hardware reset
@@ -46,5 +49,7 @@ void mos6551_reset(struct MOS6551 *);
 
 // CPU interface
 void mos6551_access(void *, _Bool RnW, unsigned A, uint8_t *D);
+
+void mos6551_service_uarts(struct MOS6551 *) ;
 
 #endif
