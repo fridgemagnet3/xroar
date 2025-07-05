@@ -47,6 +47,7 @@
 #define STAT_REG_IRQ (1<<7)
 
 #define CMD_REG_RX_IRQ_EN (1<<1)
+#define CMD_REG_DTR (1<<0)
 
 static const struct ser_struct ser_struct_mos6551[] = {
 	SER_ID_STRUCT_ELEM(1, struct MOS6551, status_reg),
@@ -158,6 +159,10 @@ static void try_tx(struct MOS6551 *acia)
 
 static void try_rx(struct MOS6551 *acia)
 {
+	// if DTR not asserted, bail
+	if ( !(acia->command_reg & CMD_REG_DTR) )
+		return ;
+
 	// if already got unread data, bail
 	if ( acia->status_reg & STAT_REG_RX_FULL )
 		return ;
